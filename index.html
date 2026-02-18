@@ -344,6 +344,7 @@
           <span class="time-entry__duration">${TimeService.formatDuration(te.elapsed)}</span>
           <div class="time-entry__actions"><button class="btn btn--ghost btn--sm" data-action="deleteTE" data-entry="${entry.id}" data-te="${te.id}" title="Remove session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon--sm"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
         row.querySelectorAll('input[type="time"]').forEach(input => {
+          input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
           input.addEventListener('blur', () => {
             if (!input.value) return;
             if (input.dataset.action === 'editStart') this._emit('editStartTime', input.dataset.entry, input.dataset.te, input.value);

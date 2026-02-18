@@ -1,82 +1,383 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Time Tracker</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <h1>Time Tracker</h1>
-          <p>Track time by entry and date.</p>
-        </div>
-        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">
-          Toggle theme
-        </button>
-      </header>
-
-      <section class="card form-card">
-        <h2>Create Entry</h2>
-        <form id="entryForm" class="entry-form">
-          <label>
-            <span>Name</span>
-            <input id="entryName" name="name" type="text" required placeholder="e.g. Client Work" />
-          </label>
-          <label>
-            <span>Date</span>
-            <input id="entryDate" name="date" type="date" required />
-          </label>
-          <button type="submit">Add Entry</button>
-        </form>
-      </section>
-
-      <section class="stats-grid">
-        <article class="card stat-card">
-          <h3>Total Tracked Time</h3>
-          <p id="globalTotal" class="stat-value">00:00:00</p>
-        </article>
-      </section>
-
-      <main>
-        <div id="dateGroups" class="date-groups"></div>
-      </main>
-    </div>
-
-    <template id="entryRowTemplate">
-      <div class="entry-row">
-        <div class="entry-main">
-          <div>
-            <p class="entry-name"></p>
-            <p class="entry-start-display"></p>
-          </div>
-          <p class="entry-time"></p>
-        </div>
-
-        <div class="entry-actions">
-          <button class="start-stop-btn" type="button"></button>
-          <label class="start-time-field">
-            <span>Start time</span>
-            <input class="start-time-input" type="time" step="1" />
-          </label>
-          <button class="save-start-btn" type="button">Save</button>
-          <button class="delete-entry-btn" type="button">Delete</button>
-        </div>
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header__left">
+        <h1 class="header__title">Time Tracker</h1>
       </div>
-    </template>
+      <div class="header__right">
+        <span class="header__total" id="globalTotal">00:00:00</span>
+        <button class="btn btn--icon" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+          <svg class="icon icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="icon icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
 
-    <script src="./src/models/TimeEntry.js" defer></script>
-    <script src="./src/services/LocalStorageService.js" defer></script>
-    <script src="./src/viewmodels/TimeTrackerViewModel.js" defer></script>
-    <script src="./src/views/TimeTrackerView.js" defer></script>
-    <script src="./app.js" defer></script>
-  </body>
+    <!-- New Entry Form -->
+    <section class="new-entry">
+      <form id="newEntryForm" class="new-entry__form">
+        <input
+          type="text"
+          id="entryName"
+          class="input"
+          placeholder="Entry name"
+          required
+          autocomplete="off"
+        />
+        <input
+          type="date"
+          id="entryDate"
+          class="input input--date"
+        />
+        <button type="submit" class="btn btn--primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon--sm"><path d="M12 5v14M5 12h14"/></svg>
+          Add Entry
+        </button>
+      </form>
+    </section>
+
+    <!-- Entry Groups -->
+    <main class="groups" id="groupsContainer">
+      <!-- Rendered by JS -->
+    </main>
+  </div>
+
+  <script>
+  // ===== Models =====
+
+  class TimeEntry {
+    constructor({ id = null, startTime, stopTime = null } = {}) {
+      this.id = id || crypto.randomUUID();
+      this.startTime = startTime ? new Date(startTime) : new Date();
+      this.stopTime = stopTime ? new Date(stopTime) : null;
+    }
+    get isRunning() { return this.stopTime === null; }
+    get elapsed() {
+      const end = this.stopTime || new Date();
+      return Math.max(0, end.getTime() - this.startTime.getTime());
+    }
+    stop() { if (this.isRunning) this.stopTime = new Date(); }
+    setStartTime(date) { this.startTime = new Date(date); }
+    setStopTime(date) { this.stopTime = new Date(date); }
+    toJSON() {
+      return { id: this.id, startTime: this.startTime.toISOString(), stopTime: this.stopTime ? this.stopTime.toISOString() : null };
+    }
+    static fromJSON(j) { return new TimeEntry({ id: j.id, startTime: j.startTime, stopTime: j.stopTime }); }
+  }
+
+  class Entry {
+    constructor({ id = null, name, date, timeEntries = [] } = {}) {
+      this.id = id || crypto.randomUUID();
+      this.name = name;
+      this.date = date;
+      this.timeEntries = timeEntries.map(te => te instanceof TimeEntry ? te : TimeEntry.fromJSON(te));
+    }
+    get totalElapsed() { return this.timeEntries.reduce((s, te) => s + te.elapsed, 0); }
+    get isRunning() { return this.timeEntries.some(te => te.isRunning); }
+    get runningTimeEntry() { return this.timeEntries.find(te => te.isRunning) || null; }
+    startTimer() { const te = new TimeEntry(); this.timeEntries.push(te); return te; }
+    stopTimer() { const r = this.runningTimeEntry; if (r) r.stop(); return r; }
+    removeTimeEntry(id) { this.timeEntries = this.timeEntries.filter(te => te.id !== id); }
+    getTimeEntry(id) { return this.timeEntries.find(te => te.id === id) || null; }
+    toJSON() { return { id: this.id, name: this.name, date: this.date, timeEntries: this.timeEntries.map(te => te.toJSON()) }; }
+    static fromJSON(j) { return new Entry({ id: j.id, name: j.name, date: j.date, timeEntries: j.timeEntries || [] }); }
+  }
+
+  class EntryGroup {
+    constructor({ date, entries = [] } = {}) {
+      this.date = date;
+      this.entries = entries.map(e => e instanceof Entry ? e : Entry.fromJSON(e));
+    }
+    get totalElapsed() { return this.entries.reduce((s, e) => s + e.totalElapsed, 0); }
+    get isRunning() { return this.entries.some(e => e.isRunning); }
+    findEntry(name) { return this.entries.find(e => e.name.toLowerCase() === name.toLowerCase()) || null; }
+    addEntry(entry) { this.entries.push(entry); }
+    removeEntry(id) { this.entries = this.entries.filter(e => e.id !== id); }
+    getEntry(id) { return this.entries.find(e => e.id === id) || null; }
+    toJSON() { return { date: this.date, entries: this.entries.map(e => e.toJSON()) }; }
+    static fromJSON(j) { return new EntryGroup({ date: j.date, entries: j.entries || [] }); }
+  }
+
+  // ===== Services =====
+
+  class TimeService {
+    static formatDuration(ms) {
+      const t = Math.floor(ms / 1000);
+      return [Math.floor(t / 3600), Math.floor((t % 3600) / 60), t % 60].map(v => String(v).padStart(2, '0')).join(':');
+    }
+    static formatTime(date) {
+      if (!date) return '--:--';
+      return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    static formatDate(dateStr) {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    static today() { return new Date().toISOString().slice(0, 10); }
+    static parseDateTime(dateStr, timeStr) { return new Date(`${dateStr}T${timeStr}:00`); }
+  }
+
+  const STORAGE_KEY = 'time-tracker-data';
+  class StorageService {
+    load() {
+      try { const r = localStorage.getItem(STORAGE_KEY); if (!r) return []; return JSON.parse(r).map(g => EntryGroup.fromJSON(g)); }
+      catch { return []; }
+    }
+    save(groups) { localStorage.setItem(STORAGE_KEY, JSON.stringify(groups.map(g => g.toJSON()))); }
+  }
+
+  // ===== ViewModel =====
+
+  class TimeTrackerViewModel {
+    constructor() {
+      this._storage = new StorageService();
+      this._entryGroups = this._storage.load();
+      this._onChangeListener = null;
+      this._onTickListener = null;
+      this._tick = setInterval(() => { if (this.hasRunningTimer && this._onTickListener) this._onTickListener(); }, 1000);
+    }
+    onChange(fn) { this._onChangeListener = fn; }
+    onTick(fn) { this._onTickListener = fn; }
+    _notify() { this._storage.save(this._entryGroups); if (this._onChangeListener) this._onChangeListener(); }
+    get entryGroups() { return [...this._entryGroups].sort((a, b) => b.date.localeCompare(a.date)); }
+    get hasRunningTimer() { return this._entryGroups.some(g => g.isRunning); }
+    get totalElapsed() { return this._entryGroups.reduce((s, g) => s + g.totalElapsed, 0); }
+
+    createEntry(name, date) {
+      if (!name || !name.trim()) return null;
+      const n = name.trim(), d = date || TimeService.today();
+      let group = this._entryGroups.find(g => g.date === d);
+      if (!group) { group = new EntryGroup({ date: d }); this._entryGroups.push(group); }
+      let entry = group.findEntry(n);
+      if (!entry) { entry = new Entry({ name: n, date: d }); group.addEntry(entry); }
+      this._notify(); return entry;
+    }
+    startTimer(entryId) {
+      this._stopAllRunning();
+      const { entry } = this._findEntry(entryId);
+      if (entry) { entry.startTimer(); this._notify(); }
+    }
+    stopTimer(entryId) {
+      const { entry } = this._findEntry(entryId);
+      if (entry) { entry.stopTimer(); this._notify(); }
+    }
+    deleteEntry(entryId) {
+      for (const g of this._entryGroups) {
+        if (g.getEntry(entryId)) {
+          g.removeEntry(entryId);
+          if (g.entries.length === 0) this._entryGroups = this._entryGroups.filter(x => x !== g);
+          this._notify(); return;
+        }
+      }
+    }
+    editStartTime(entryId, teId, timeStr) {
+      const { entry } = this._findEntry(entryId); if (!entry) return;
+      const te = entry.getTimeEntry(teId); if (!te) return;
+      te.setStartTime(TimeService.parseDateTime(entry.date, timeStr)); this._notify();
+    }
+    editStopTime(entryId, teId, timeStr) {
+      const { entry } = this._findEntry(entryId); if (!entry) return;
+      const te = entry.getTimeEntry(teId); if (!te || te.isRunning) return;
+      te.setStopTime(TimeService.parseDateTime(entry.date, timeStr)); this._notify();
+    }
+    deleteTimeEntry(entryId, teId) {
+      const { entry } = this._findEntry(entryId); if (!entry) return;
+      entry.removeTimeEntry(teId); this._notify();
+    }
+    _findEntry(id) {
+      for (const g of this._entryGroups) { const e = g.getEntry(id); if (e) return { group: g, entry: e }; }
+      return { group: null, entry: null };
+    }
+    _stopAllRunning() {
+      for (const g of this._entryGroups) for (const e of g.entries) if (e.isRunning) e.stopTimer();
+    }
+  }
+
+  // ===== View =====
+
+  class TimeTrackerView {
+    constructor() {
+      this._groups = document.getElementById('groupsContainer');
+      this._total = document.getElementById('globalTotal');
+      this._form = document.getElementById('newEntryForm');
+      this._nameInput = document.getElementById('entryName');
+      this._dateInput = document.getElementById('entryDate');
+      this._themeBtn = document.getElementById('themeToggle');
+      this._dateInput.value = TimeService.today();
+      this._cbs = {};
+      const saved = localStorage.getItem('time-tracker-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+      this._themeBtn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('time-tracker-theme', next);
+      });
+    }
+    on(ev, fn) { this._cbs[ev] = fn; }
+    _emit(ev, ...a) { if (this._cbs[ev]) this._cbs[ev](...a); }
+    _esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    bindForm() {
+      this._form.addEventListener('submit', e => {
+        e.preventDefault();
+        const name = this._nameInput.value.trim(), date = this._dateInput.value || TimeService.today();
+        if (name) { this._emit('createEntry', name, date); this._nameInput.value = ''; this._nameInput.focus(); }
+      });
+    }
+
+    render(vm) {
+      this._total.textContent = TimeService.formatDuration(vm.totalElapsed);
+      this._groups.innerHTML = '';
+      this._expandedEntries = new Set(this._expandedEntries || []);
+      const groups = vm.entryGroups;
+      if (!groups.length) {
+        this._groups.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--text-muted)"><p style="font-size:1.1rem;margin-bottom:.5rem">No entries yet</p><p style="font-size:.85rem">Add an entry above to start tracking time.</p></div>';
+        return;
+      }
+      for (const g of groups) this._groups.appendChild(this._renderGroup(g));
+    }
+
+    /** Lightweight tick: only update time text, no DOM rebuild */
+    tickUpdate(vm) {
+      this._total.textContent = TimeService.formatDuration(vm.totalElapsed);
+      // Update group totals
+      this._groups.querySelectorAll('.group').forEach((groupEl, gi) => {
+        const group = vm.entryGroups[gi];
+        if (!group) return;
+        const totalSpan = groupEl.querySelector('.group__total');
+        if (totalSpan) totalSpan.textContent = TimeService.formatDuration(group.totalElapsed);
+        // Update entry elapsed times
+        groupEl.querySelectorAll('.entry').forEach((entryEl, ei) => {
+          const entry = group.entries[ei];
+          if (!entry) return;
+          const elapsed = entryEl.querySelector('.entry__elapsed');
+          if (elapsed) elapsed.textContent = TimeService.formatDuration(entry.totalElapsed);
+          // Update time entry durations in expanded sessions
+          const sessionsEl = entryEl.querySelector('.time-entries');
+          if (sessionsEl) {
+            sessionsEl.querySelectorAll('.time-entry').forEach((teEl, ti) => {
+              const te = entry.timeEntries[ti];
+              if (!te) return;
+              const dur = teEl.querySelector('.time-entry__duration');
+              if (dur) dur.textContent = TimeService.formatDuration(te.elapsed);
+            });
+          }
+        });
+      });
+    }
+
+    _renderGroup(group) {
+      const el = document.createElement('div'); el.className = 'group';
+      el.innerHTML = `<div class="group__header"><span class="group__date">${TimeService.formatDate(group.date)}</span><span class="group__total">${TimeService.formatDuration(group.totalElapsed)}</span></div>`;
+      for (const entry of group.entries) el.appendChild(this._renderEntry(entry));
+      return el;
+    }
+
+    _renderEntry(entry) {
+      const el = document.createElement('div'); el.className = 'entry' + (entry.isRunning ? ' entry--running' : '');
+      const main = document.createElement('div'); main.className = 'entry__main';
+      main.innerHTML = `
+        <div class="entry__info">
+          ${entry.isRunning ? '<span class="entry__running-dot"></span>' : ''}
+          <span class="entry__name">${this._esc(entry.name)}</span>
+          <span class="entry__elapsed">${TimeService.formatDuration(entry.totalElapsed)}</span>
+        </div>
+        <div class="entry__actions">
+          ${entry.isRunning
+            ? `<button class="btn btn--danger btn--sm" data-action="stop" data-entry="${entry.id}"><svg viewBox="0 0 24 24" fill="currentColor" class="icon icon--sm"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Stop</button>`
+            : `<button class="btn btn--success btn--sm" data-action="start" data-entry="${entry.id}"><svg viewBox="0 0 24 24" fill="currentColor" class="icon icon--sm"><polygon points="6,4 20,12 6,20"/></svg>Start</button>`
+          }
+          <button class="btn btn--ghost btn--sm" data-action="toggleSessions" data-entry="${entry.id}" title="Show sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon--sm"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="btn btn--ghost btn--sm" data-action="delete" data-entry="${entry.id}" title="Delete entry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon--sm"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
+        </div>`;
+      main.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const a = btn.dataset.action, id = btn.dataset.entry;
+          if (a === 'start') this._emit('startTimer', id);
+          else if (a === 'stop') this._emit('stopTimer', id);
+          else if (a === 'delete') this._emit('deleteEntry', id);
+          else if (a === 'toggleSessions') {
+            const s = el.querySelector('.time-entries');
+            if (s) { s.remove(); this._expandedEntries.delete(entry.id); }
+            else { el.appendChild(this._renderTimeEntries(entry)); this._expandedEntries.add(entry.id); }
+          }
+        });
+      });
+      el.appendChild(main);
+      // Auto-expand if previously expanded
+      if (this._expandedEntries && this._expandedEntries.has(entry.id)) {
+        el.appendChild(this._renderTimeEntries(entry));
+      }
+      return el;
+    }
+
+    _renderTimeEntries(entry) {
+      const c = document.createElement('div'); c.className = 'time-entries';
+      if (!entry.timeEntries.length) { c.innerHTML = '<div class="time-entry" style="color:var(--text-muted)">No sessions yet</div>'; return c; }
+      for (const te of entry.timeEntries) {
+        const row = document.createElement('div'); row.className = 'time-entry' + (te.isRunning ? ' time-entry--running' : '');
+        const sv = TimeService.formatTime(te.startTime), ev = te.stopTime ? TimeService.formatTime(te.stopTime) : 'running…';
+        row.innerHTML = `
+          <div class="time-entry__range">
+            <input type="time" class="input input--time" value="${sv}" data-action="editStart" data-entry="${entry.id}" data-te="${te.id}"/>
+            <span>→</span>
+            ${te.isRunning ? `<span style="color:var(--success);font-family:var(--font-mono)">${ev}</span>` : `<input type="time" class="input input--time" value="${ev}" data-action="editStop" data-entry="${entry.id}" data-te="${te.id}"/>`}
+          </div>
+          <span class="time-entry__duration">${TimeService.formatDuration(te.elapsed)}</span>
+          <div class="time-entry__actions"><button class="btn btn--ghost btn--sm" data-action="deleteTE" data-entry="${entry.id}" data-te="${te.id}" title="Remove session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon--sm"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+        row.querySelectorAll('input[type="time"]').forEach(input => {
+          input.addEventListener('blur', () => {
+            if (!input.value) return;
+            if (input.dataset.action === 'editStart') this._emit('editStartTime', input.dataset.entry, input.dataset.te, input.value);
+            else if (input.dataset.action === 'editStop') this._emit('editStopTime', input.dataset.entry, input.dataset.te, input.value);
+          });
+        });
+        row.querySelectorAll('[data-action="deleteTE"]').forEach(btn => {
+          btn.addEventListener('click', () => this._emit('deleteTimeEntry', btn.dataset.entry, btn.dataset.te));
+        });
+        c.appendChild(row);
+      }
+      return c;
+    }
+  }
+
+  // ===== App bootstrap =====
+
+  class App {
+    constructor() {
+      this.vm = new TimeTrackerViewModel();
+      this.view = new TimeTrackerView();
+      this.view.on('createEntry', (n, d) => this.vm.createEntry(n, d));
+      this.view.on('startTimer', id => this.vm.startTimer(id));
+      this.view.on('stopTimer', id => this.vm.stopTimer(id));
+      this.view.on('deleteEntry', id => this.vm.deleteEntry(id));
+      this.view.on('editStartTime', (eid, tid, t) => this.vm.editStartTime(eid, tid, t));
+      this.view.on('editStopTime', (eid, tid, t) => this.vm.editStopTime(eid, tid, t));
+      this.view.on('deleteTimeEntry', (eid, tid) => this.vm.deleteTimeEntry(eid, tid));
+      this.vm.onChange(() => this.view.render(this.vm));
+      this.vm.onTick(() => this.view.tickUpdate(this.vm));
+      this.view.bindForm();
+      this.view.render(this.vm);
+    }
+  }
+  new App();
+  </script>
+</body>
 </html>
